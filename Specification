@@ -1,0 +1,3 @@
+Flow: DB → loader → chunk → embedding → vector_store
+User → API → retriever → rag → LLM → response
+
