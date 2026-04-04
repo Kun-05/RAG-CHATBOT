@@ -1,4 +1,4 @@
-# 🧠 RAG Chatbot for E-commerce Website
+# RAG Chatbot for E-commerce Website
 
 ## 📌 Overview
 
