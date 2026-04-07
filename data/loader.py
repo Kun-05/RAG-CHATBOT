@@ -111,6 +111,8 @@ for file in danh_sach_file():
         noi_dung = doc_file_da_nang(file)
         if noi_dung: 
             print(f"-> Thành công! Đã đọc được {len(noi_dung)} ký tự từ {file}.\n")
+            print(noi_dung[:300]) 
+            print("...")
         else:
             print(f"-> Bỏ qua file: {file} (Không có nội dung hoặc không hỗ trợ).\n")
         
