@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException
+import os
+import shutil
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional
 
@@ -16,6 +18,23 @@ class ChatRequest(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """Upload a PDF, TXT, or DOCX file into storage/ for indexing."""
+    ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx", ".csv", ".json"}
+    _, ext = os.path.splitext(file.filename)
+    if ext.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+    os.makedirs("storage", exist_ok=True)
+    dest = os.path.join("storage", file.filename)
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return {"message": f"Uploaded '{file.filename}' to storage/", "path": dest}
 
 
 @app.post("/chat")

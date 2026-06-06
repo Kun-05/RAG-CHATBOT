@@ -2,7 +2,7 @@ import os
 import csv
 import json
 import re
-
+from pypdf import PdfReader
     
 def doc_file_da_nang(file_path):
     """
@@ -52,12 +52,12 @@ def doc_file_da_nang(file_path):
                     
         # 2. Nhóm file PDF (Dùng pypdf)
         elif ext == '.pdf':
-            import pypdf
-            reader = pypdf.PdfReader(file_path)
+            reader = PdfReader(file_path)
             for page in reader.pages:
                 text = page.extract_text()
                 if text:
                     toan_bo_van_ban += text + "\n"
+            return toan_bo_van_ban
                     
         # 3. Nhóm file Word (Dùng python-docx)
         elif ext in ['.doc', '.docx']:

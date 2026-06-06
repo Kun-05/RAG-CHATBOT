@@ -5,7 +5,7 @@ from core.retriever import retrieve
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 def ask(question: str) -> str:
-    # Bước 1: Lấy context từ ChromaDB
+    # Bước 1: Lấy context từ CustomVectorDB
     chunks = retrieve(question, top_k=3)
     context = "\n\n".join(chunks)
 
