@@ -1,7 +1,9 @@
 import os
 import csv
 import json
-
+import re
+from pypdf import PdfReader
+    
 def doc_file_da_nang(file_path):
     """
     Hàm đọc file
@@ -16,18 +18,46 @@ def doc_file_da_nang(file_path):
     
     try:
         # 1. Nhóm file văn bản thuần túy (Dùng thư viện gốc của Python)
-        if ext in ['.txt', '.md', '.sql', '.js']:
+        if ext in ['.txt', '.md', '.sql']:
             with open(file_path, 'r', encoding='utf-8') as f:
                 toan_bo_van_ban = f.read()
-                
+
+        elif ext == '.js':  # ✅ Giờ mới được xử lý đúng
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            start = content.find('[')
+            end = content.rfind(']')
+            if start == -1 or end == -1:
+                print("❌ Không tìm thấy array [...] trong file JS.")
+                return None
+
+            js_str = content[start:end+1]
+
+            # Bước 1: Xóa comment dạng // ...
+            js_str = re.sub(r'//[^\n]*', '', js_str)
+
+            # Bước 2: Thêm dấu nháy kép vào KEY (chỉ word đứng trước dấu :, không nằm trong string)
+            js_str = re.sub(r'(?<!["\w])(\b[a-zA-Z_$][a-zA-Z0-9_$]*)(\s*):', r'"\1"\2:', js_str)
+
+            # Bước 3: Xóa trailing comma trước } hoặc ]
+            js_str = re.sub(r',\s*([}\]])', r'\1', js_str)
+
+            try:
+                data = json.loads(js_str)
+                return data
+            except Exception as e:
+                print(f"❌ Lỗi parse JS → JSON: {e}")
+                return None
+                    
         # 2. Nhóm file PDF (Dùng pypdf)
         elif ext == '.pdf':
-            import pypdf
-            reader = pypdf.PdfReader(file_path)
+            reader = PdfReader(file_path)
             for page in reader.pages:
                 text = page.extract_text()
                 if text:
                     toan_bo_van_ban += text + "\n"
+            return toan_bo_van_ban
                     
         # 3. Nhóm file Word (Dùng python-docx)
         elif ext in ['.doc', '.docx']:
