@@ -1,12 +1,15 @@
 import os
 import shutil
 from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from typing import Optional
 
 from core.rag import ask
 
-app = FastAPI(title="RAG Chatbot API")
+app = FastAPI(title="RAG Chatbot API",
+              description="API for uploading documents and chatting with the RAG-powered assistant.",
+              version="1.0.0")
 
 
 class ChatRequest(BaseModel):
@@ -14,6 +17,9 @@ class ChatRequest(BaseModel):
     top_k: Optional[int] = None
     stream: Optional[bool] = False
 
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/docs")
 
 @app.get("/health")
 def health():

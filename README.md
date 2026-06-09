@@ -84,6 +84,7 @@ cd RAG-CHATBOT
 
 ```bash
 pip install -r requirement.txt
+pip install "fastapi[standard]"
 ```
 
 ### 3. Install and run Ollama
@@ -132,6 +133,12 @@ POST http://localhost:8000/chat
 Or open `http://localhost:8000/docs` for the interactive Swagger UI.
 
 ---
+### Step 5: Clean file vector_db.json
+
+
+```bash
+./clean.ps1
+```
 
 ## 🧠 How It Works
 
