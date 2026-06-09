@@ -1,3 +1,101 @@
-Flow: DB → loader → chunk → embedding → vector_store
-User → API → retriever → rag → LLM → response
+# Technical Specification: RAG Chatbot System
 
+## 1. Project Overview
+This project is a localized Retrieval-Augmented Generation (RAG) chatbot system. It enables users to query domain-specific datasets using natural language and receive grounded, accurate responses. The architecture operates entirely **offline (local-first)**, eliminating reliance on third-party APIs (such as OpenAI) and avoiding high-level RAG frameworks (e.g., LangChain, LlamaIndex) or managed Vector Databases (e.g., Pinecone).
+
+## 2. Tech Stack
+* **Frontend:** Streamlit (supporting interactive chat UI and real-time Server-Sent Events - SSE).
+* **Backend:** FastAPI (asynchronous API framework).
+* **LLM Engine:** Ollama (local deployment).
+    * *Generation Model:* `mistral` (extensible to `qwen`, `gemma`, etc.).
+    * *Embedding Model:* `nomic-embed-text`.
+* **Vector Store:** Custom implementation (JSON-based persistence, native Python math for vector operations).
+* **Document Parsing:** `pypdf` (PDF processing), Python `re` (Regex-based data extraction for structured `.js` files).
+
+---
+
+## 3. System Architecture
+
+The system processes data and queries through three primary pipelines:
+
+### 3.1. Data Ingestion Pipeline
+1. **Loader (`data/loader.py`):** Parses raw files from `storage/`. It includes specialized logic for structured source code files (e.g., `.js` arrays) using Regex to extract data objects.
+2. **Chunking (`data/chunking.py`):**
+    * *Unstructured Data (PDF/TXT):* Implements a sliding window approach (default chunk size: 300 words with configurable overlap).
+    * *Structured Data (Products/Menu):* Schema-aware chunking that aggregates fields (`title`, `price`, `description`) into coherent, natural language strings.
+3. **Indexing (`data/indexing.py`):** Passes each chunk through Ollama (`nomic-embed-text`) to generate dense vector embeddings, persisting them into `db/vector_db.json`.
+
+### 3.2. Retrieval Pipeline
+* **Custom Vector Store (`core/vector_store.py`):** Loads the complete vector structure into memory.
+* **Algorithm:** Performs $O(N)$ linear **Cosine Similarity** calculations between the query vector and all database vectors to retrieve the `Top K` most semantically relevant chunks.
+
+### 3.3. Generation Pipeline
+* **Prompt Engineering (`core/rag.py`):** Implements a structured prompt template:
+    1. *Persona:* Defines the assistant's role.
+    2. *Context:* Injects retrieved chunks into the prompt.
+    3. *Constraints:* Enforces non-hallucination protocols and forces Vietnamese language output.
+* **Streaming Generation:** Requests Ollama API with `stream=True`. Utilizes Python Generators (`yield`) to stream tokens via FastAPI's `StreamingResponse` back to the UI.
+
+---
+
+## 4. API Specification
+
+### 4.1. `POST /chat`
+* **Description:** Receives user queries and returns LLM-generated responses (supports streaming).
+* **Request Body:**
+  ```json
+  {
+    "query": "What is the price of the coffee?",
+    "top_k": 3,
+    "stream": true
+  }
+
+```
+
+* **Response:**
+* If `stream=false`: JSON `{"answer": "..."}`.
+* If `stream=true`: `text/event-stream` (token chunks).
+
+
+
+### 4.2. `POST /upload`
+
+* **Description:** Uploads documents (.pdf, .txt, .js) to `storage/` for indexing.
+* **Request:** `multipart/form-data` containing the `file`.
+
+### 4.3. `GET /health`
+
+* **Description:** Verifies server operational status.
+
+---
+
+## 5. Vector Data Schema (`db/vector_db.json`)
+
+The storage layer utilizes an array-of-objects structure:
+
+```json
+[
+  {
+    "id": "chunk_001",
+    "text": "Item: Salted Coffee. Price: 25000 VND. Status: In stock. Description: Robust coffee with creamy salted foam.",
+    "vector": [0.0123, -0.0456, 0.0789, ...] 
+  }
+]
+
+```
+
+---
+
+## 6. Limitations & Future Scope
+
+* **Search Complexity:** Currently utilizes $O(N)$ linear search. Performance may degrade as the dataset scales into the tens of thousands of chunks.
+* **Future Roadmap:**
+1. **ANN Integration:** Replace linear search with HNSW or KD-Tree structures (via `numpy` or `faiss`) to achieve $O(\log N)$ search complexity.
+2. **Session Memory:** Implement `session_id` tracking to enable multi-turn conversational context.
+3. **Reranking:** Incorporate a Cross-Encoder layer post-retrieval to optimize context relevance before LLM inference.
+
+
+
+```
+
+```
