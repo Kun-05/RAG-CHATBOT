@@ -2,30 +2,33 @@
 
 ## 📌 Overview
 
-A fully local **Retrieval-Augmented Generation (RAG) chatbot** built from scratch, designed to answer product-related questions from an e-commerce catalog. The system retrieves relevant context from a custom-built JSON vector database and generates accurate, grounded responses using a local LLM — zero external API calls, all data stays on-device.
+A fully local Retrieval-Augmented Generation (RAG) chatbot built from scratch, designed to answer domain-specific questions from custom datasets. The system retrieves relevant context from a custom-built JSON vector database and generates accurate, grounded responses using a local LLM. It operates with zero external API calls, ensuring all data stays on-device.
 
 Key engineering decisions:
-- **No LangChain, no ChromaDB** — vector storage and cosine similarity implemented in pure Python
-- **Multi-format ingestion** — parses structured `.js` product arrays (via Regex) and unstructured `.pdf` documents (via `pypdf`)
-- **Sliding window chunking** for PDF text; product-aware chunking for structured data
+- **No LangChain, no ChromaDB** — vector storage and cosine similarity are implemented in pure Python.
+- **Interactive Web UI** — features a Streamlit-based frontend with real-time token streaming (Server-Sent Events) for a smooth, ChatGPT-like user experience.
+- **Multi-format ingestion** — parses structured `.js` data arrays (via Regex) and unstructured `.pdf` documents (via `pypdf`).
+- **Sliding window chunking** is used for PDF text, while schema-aware chunking is applied to structured data.
 
 ---
 
 ## 🎯 Features
 
-- 🔍 **Custom Cosine Similarity Search** — implemented from scratch using only Python's `math` module, no vector DB framework
-- 🧠 **Structured Prompt Engineering** — prompt template separates role instruction, answer constraints, and context injection
-- ⚡ **Fully Local Deployment** — Ollama runs both the embedding model and LLM locally; no internet required after setup
-- 🛠️ **Custom JSON Vector Store** — embeddings persisted in `db/vector_db.json`, managed by `CustomVectorDB` class
-- 📄 **Multi-format Ingestion** — supports `.js`, `.pdf`, `.txt`, `.md`, `.csv`, `.json`, `.docx`
-- 📦 **FastAPI Backend** — exposes `/chat` and `/health` endpoints; Swagger UI at `/docs`
+- 🎨 **Streamlit Frontend** — a clean, interactive chat interface decoupled from the backend, supporting real-time text streaming.
+- 🔍 **Custom Cosine Similarity Search** — implemented from scratch using only Python's `math` module, without relying on any vector DB framework.
+- 🧠 **Structured Prompt Engineering** — the prompt template explicitly separates role instruction, answer constraints, and context injection.
+- ⚡ **Fully Local Deployment** — Ollama runs both the embedding model and LLM locally, requiring no internet after setup.
+- 🛠️ **Custom JSON Vector Store** — embeddings are persisted in `db/vector_db.json` and managed by the `CustomVectorDB` class.
+- 📦 **FastAPI Backend** — exposes `/chat` and `/health` endpoints, with Swagger UI available at `/docs`.
 
 ---
 
 ## 🧱 System Architecture
 
 ```text
-User Query
+User Query (Streamlit UI)
+   ↓
+FastAPI Backend (/chat)
    ↓
 Embedding (Ollama: nomic-embed-text)
    ↓
@@ -37,7 +40,8 @@ build_prompt() — role + constraints + context injection
    ↓
 LLM Generation (Ollama: mistral)
    ↓
-Response
+Response Streaming (Yielding tokens back to UI)
+
 ```
 
 ---
@@ -56,17 +60,20 @@ rag-chatbot/
 │   ├── vector_store.py    # CustomVectorDB class: JSON persistence + cosine_similarity() from scratch
 │   ├── retriever.py       # retrieve() — embeds query, calls CustomVectorDB.search()
 │   ├── llm.py             # (reserved for LLM abstraction layer)
-│   └── rag.py             # ask() — full pipeline: retrieve → build prompt → call Mistral
+│   └── rag.py             # ask() and ask_stream() — pipeline: retrieve → build prompt → call LLM
 │
 │── api/
-│   └── main.py            # FastAPI: POST /chat, GET /health
+│   └── main.py            # FastAPI: POST /chat (with StreamingResponse support), GET /health
+│
+│── ui.py                  # Streamlit frontend for interactive chat and streaming
 │
 │── db/
 │   └── vector_db.json     # Persisted vector embeddings
 │
-│── storage/               # Drop product .js files or .pdf documents here before indexing
-│── config.py              # OLLAMA_URL, EMBED_MODEL, LLM_MODEL, CHUNK_SIZE, TOP_K, VECTOR_DB_PATH
-│── requirement.txt        # Python dependencies
+│── storage/               # Drop structured .js files or .pdf documents here before indexing
+│── config.py              # OLLAMA_URL, EMBED_MODEL, LLM_MODEL, CHUNK_SIZE, TOP_K
+│── requirement.txt        # Python dependencies (including fastapi, streamlit, requests)
+
 ```
 
 ---
@@ -76,14 +83,16 @@ rag-chatbot/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/Kun-05/RAG-CHATBOT.git
+git clone [https://github.com/Kun-05/RAG-CHATBOT.git](https://github.com/Kun-05/RAG-CHATBOT.git)
 cd RAG-CHATBOT
+
 ```
 
 ### 2. Install dependencies
 
 ```bash
 pip install -r requirement.txt
+
 ```
 
 ### 3. Install and run Ollama
@@ -93,6 +102,7 @@ Install [Ollama](https://ollama.com/), then pull the required models:
 ```bash
 ollama pull mistral
 ollama pull nomic-embed-text
+
 ```
 
 ---
@@ -101,35 +111,47 @@ ollama pull nomic-embed-text
 
 ### Step 1: Add your data
 
-Place product `.js` files or `.pdf` documents into the `storage/` folder.
+Place target `.js` files or `.pdf` documents into the `storage/` folder.
 
 ### Step 2: Build the vector database
 
 ```bash
 python -m data.indexing
+
 ```
 
-This will embed all documents and save vectors to `db/vector_db.json`.
+This process will embed all documents and save the vectors to `db/vector_db.json`.
 
-### Step 3: Start the API server
+### Step 3: Start the Backend API (Terminal 1)
+
+Run the FastAPI server to handle retrieval and LLM generation:
 
 ```bash
 uvicorn api.main:app --reload
-```
-
-### Step 4: Query the chatbot
 
 ```
-POST http://localhost:8000/chat
+
+### Step 4: Start the Chat UI (Terminal 2)
+
+Open a new terminal window and launch the Streamlit frontend:
+
+```bash
+streamlit run ui.py
+
 ```
 
-```json
-{
-  "query": "What is the price of this ring and is it in stock?"
-}
-```
+The application will automatically open in your browser at `http://localhost:8501`.
 
-Or open `http://localhost:8000/docs` for the interactive Swagger UI.
+### Step 5: Direct API Query (Optional)
+
+You can still bypass the UI and query the API directly or use the Swagger UI at `http://localhost:8000/docs`.
+
+```bash
+curl -X POST "http://localhost:8000/chat" \
+     -H "Content-Type: application/json" \
+     -d '{"query": "What are the specifications of this item?", "stream": true}'
+
+```
 
 ---
 
@@ -137,81 +159,41 @@ Or open `http://localhost:8000/docs` for the interactive Swagger UI.
 
 ### 1. Ingestion & Chunking
 
-`data/loader.py` handles multi-format parsing:
-- **`.js` product arrays** — extracts the JSON array using `rfind`, strips comments and trailing commas via Regex, then parses to Python list
-- **`.pdf` documents** — extracts text page-by-page using `pypdf`
-- **`.txt`, `.md`, `.csv`, `.json`, `.docx`** — also supported
+`data/loader.py` handles multi-format parsing. Formats including `.txt`, `.md`, `.csv`, `.json`, and `.docx` are also supported.
+`data/chunking.py` applies two distinct strategies: `chunk_products()` for structured data and `chunk_text()` for free-form text.
 
-`data/chunking.py` applies two strategies:
-- `chunk_products()` — one chunk per product, preserving all fields (title, price, discount, stock, description)
-- `chunk_text()` — sliding window with configurable `chunk_size` and `overlap` for free-form text
+### 2. Custom Vector Store
 
-### 2. Embedding
+The `CustomVectorDB` class acts as the persistence layer, implementing `cosine_similarity(v1, v2)` from scratch utilizing only `math.sqrt` and list comprehensions.
 
-`core/embedding.py` calls Ollama's local API (`nomic-embed-text`) to convert each text chunk into a float vector. No cloud API involved.
+### 3. Prompt Engineering & Generation
 
-### 3. Custom Vector Store
-
-`core/vector_store.py` — `CustomVectorDB` class:
-- Stores and loads embeddings as a JSON list (`db/vector_db.json`)
-- Implements `cosine_similarity(v1, v2)` from scratch using only `math.sqrt` and list comprehensions
-- `search(query_vector, top_k)` — linear scan over all entries, returns top-K by similarity score
-
-### 4. Prompt Engineering
-
-`core/rag.py` — `ask()` constructs a structured prompt with three explicit sections:
-- **Role instruction** — defines the assistant's persona and task scope
-- **Answer constraints** — explicitly forbids hallucination ("only answer from provided context")
-- **Context injection** — inserts the top-K retrieved chunks under a labeled section header
-
-### 5. Generation
-
-The assembled prompt is sent to the local Mistral model via Ollama. Response is returned as plain text through the FastAPI `/chat` endpoint.
-
----
-
-## ⚡ Configuration
-
-Edit `config.py`:
-
-```python
-OLLAMA_URL = "http://localhost:11434"
-
-EMBED_MODEL = "nomic-embed-text"
-LLM_MODEL   = "mistral"
-
-CHUNK_SIZE      = 300   # words per chunk (sliding window)
-TOP_K           = 3     # number of retrieved chunks
-VECTOR_DB_PATH  = "db/vector_db.json"
-```
+In `core/rag.py`, the system constructs a structured prompt explicitly forbidding hallucination. The assembled prompt is sent to the local Mistral model via Ollama. The `ask_stream()` function utilizes Python generators (`yield`) to stream tokens back to the FastAPI `/chat` endpoint, which are then consumed and rendered dynamically by the Streamlit UI.
 
 ---
 
 ## ⚠️ Limitations
 
-- **O(N) linear search** — `CustomVectorDB.search()` scores every entry on each query. Intentionally simple; not optimized for large-scale datasets.
-- **No advanced indexing** — does not use FAISS, HNSW, or any approximate nearest-neighbor structure.
-- **No upload endpoint** — documents must be placed manually in `storage/` before running `data.indexing`.
-- **Single-turn only** — no conversation memory across queries.
+* **O(N) linear search** — `CustomVectorDB.search()` scores every entry on each query. It is intentionally simple and not optimized for large-scale datasets.
+* **No advanced indexing** — the system does not use FAISS, HNSW, or any approximate nearest-neighbor structures.
+* **Single-turn only** — there is no conversation memory maintained across queries in the current implementation.
 
 ---
 
 ## 🚀 Future Improvements
 
-- Add `/upload` endpoint for runtime document ingestion
-- Implement Approximate Nearest Neighbor (ANN) search
-- Add a Cross-Encoder reranking step after retrieval
-- Support multi-turn conversation via session state
-- Hybrid search: BM25 sparse + dense vector retrieval
+* Add an `/upload` endpoint for runtime document ingestion via the UI.
+* Implement Approximate Nearest Neighbor (ANN) search for better scaling.
+* Add a Cross-Encoder reranking step following the initial retrieval.
+* Support multi-turn conversation via Streamlit session state management.
+* Implement Hybrid search combining BM25 sparse and dense vector retrieval.
 
 ---
 
 ## 👨‍💻 Author
 
-Built as a foundational AI engineering project — custom vector math, multi-format document ingestion, and structured prompt engineering — with no reliance on high-level RAG frameworks.
+Built as a foundational AI engineering project — showcasing custom vector math, real-time streaming, and structured prompt engineering — with no reliance on high-level RAG frameworks.
 
----
+```
 
-## 📜 License
-
-Open-source, available for educational and development purposes.
+```

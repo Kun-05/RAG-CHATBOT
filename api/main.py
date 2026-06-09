@@ -1,28 +1,30 @@
 import os
 import shutil
 from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
-from core.rag import ask
+# Import cả 2 hàm từ rag.py
+from core.rag import ask, ask_stream
 
 app = FastAPI(title="RAG Chatbot API")
-
 
 class ChatRequest(BaseModel):
     query: str
     top_k: Optional[int] = None
     stream: Optional[bool] = False
 
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/docs")
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-
 @app.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
-    """Upload a PDF, TXT, or DOCX file into storage/ for indexing."""
     ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx", ".csv", ".json"}
     _, ext = os.path.splitext(file.filename)
     if ext.lower() not in ALLOWED_EXTENSIONS:
@@ -36,7 +38,6 @@ async def upload_document(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, f)
     return {"message": f"Uploaded '{file.filename}' to storage/", "path": dest}
 
-
 @app.post("/chat")
 def chat(req: ChatRequest):
     q = req.query.strip() if req.query else ""
@@ -44,9 +45,12 @@ def chat(req: ChatRequest):
         raise HTTPException(status_code=400, detail="'query' is required")
 
     try:
-        # Use existing RAG pipeline (`core.rag.ask`) which returns a string answer.
-        answer = ask(q)
-        return {"answer": answer}
+        if req.stream:
+            # Trả về dữ liệu chạy chữ từ từ
+            return StreamingResponse(ask_stream(q), media_type="text/event-stream")
+        else:
+            # Trả về 1 cục text ngay lập tức (dự phòng)
+            answer = ask(q)
+            return {"answer": answer}
     except Exception as e:
-        # Surface a 503 when downstream services fail (LLM / embedding / DB)
         raise HTTPException(status_code=503, detail=str(e))

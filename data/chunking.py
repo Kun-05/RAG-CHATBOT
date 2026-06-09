@@ -21,3 +21,12 @@ def chunk_text(text: str, chunk_size: int = 300, overlap: int = 50) -> list[str]
         chunk = " ".join(words[i:i + chunk_size])
         chunks.append(chunk)
     return chunks
+
+def process_menu_item(item):
+    price_text = f"{item['price']} VND" if item['price'] > 0 else "Dang cap nhat gia"
+
+    stock_text = "Còn hàng" if item['stockQuantity'] > 0 else "Tam het hang"
+
+    chunk = f"Tên món: {item['title']}. Giá bán: {price_text}. Tình trạng: {stock_text}. Mô tả thêm: {item['description']}."
+
+    return chunk
